@@ -1,0 +1,9 @@
+services:
+  cold_storage:
+    build: .
+    volumes:
+      - ./Iceberg:/app/data
+    command: ["python", "/app/cold_storage.py"]
+    restart: "no"
+    network_mode: "none"
+    read_only: true
