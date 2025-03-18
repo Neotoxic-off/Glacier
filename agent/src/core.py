@@ -8,19 +8,32 @@ from src.handlers.file import FileHandler
 from src.handlers.checksum import ChecksumHandler
 from src.constants.logs import *
 
+DATE: str = datetime.today().strftime('%Y-%m-%d %H-%M-%S')
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+    handlers=[
+        logging.FileHandler(f"/app/logs/{DATE}.log"),
+        logging.StreamHandler()
+    ]
+)
+
 class Core:
     def __init__(self):
         self._load_environment()
-
-        self.report_path = "report/{}.csv".format(
-            datetime.today().strftime('%Y-%m-%d')
-        )
+        self.report_path = f"report/{DATE}.csv"
         self.file_handler: FileHandler = FileHandler(self.storage_dir)
         self.checksum_handler: ChecksumHandler = ChecksumHandler(self.db_url)
-        self.failed_files: list[str] = []
-        self.success_files: list[str] = []
+        self.files_status: dict = {}
 
+    def run(self):
         logging.info(INIT_COLD_STORAGE)
+
+        self._verify_files()
+        self._display_files_status()
+        self._write_report()
 
     def _load_environment(self):
         self.storage_dir: str = os.getenv('STORAGE_DIR')
@@ -37,34 +50,46 @@ class Core:
             self.db_name
         )
 
-    def verify_files(self) -> None:
+    def _verify_files(self) -> None:
         logging.info(VERIFYING_FILES)
 
-        files = os.listdir(self.file_handler.storage_dir)
+        files: list = os.listdir(self.file_handler.storage_dir)
+        checksum: str = None
+        file_path: str = None
+        current_checksum: str = None
 
         for file_name in files:
-            checksum: str | None = self.checksum_handler.load_checksum(file_name)
-            file_path: str = os.path.join(self.file_handler.storage_dir, file_name)
-            current_checksum: str = self.checksum_handler.generate_checksum(file_path)
+            checksum = self.checksum_handler.load_checksum(file_name)
+            file_path = os.path.join(self.file_handler.storage_dir, file_name)
+            current_checksum = self.checksum_handler.generate_checksum(file_path)
 
             if not checksum:
-                logging.warning(NO_CHECKSUM_FOUND.format(file_name))
                 self.checksum_handler.save_checksum(file_name, current_checksum)
+                self.files_status[file_name] = "initialized"
             elif current_checksum != checksum:
-                logging.error(FILE_CORRUPTED.format(file_name))
-                self.failed_files.append(file_name)
+                self.files_status[file_name] = "corrupted"
             else:
-                logging.info(FILE_VALIDATED.format(file_name))
-                self.success_files.append(file_name)
+                self.files_status[file_name] = "valid"
 
+    def _display_files_status(self):
+        file_status: tuple = None
+        status: dict = {
+            "initialized": (logging.warning, FILE_SAVED),
+            "valid": (logging.info, FILE_VALIDATED),
+            "corrupted": (logging.error, FILE_CORRUPTED)
+        }
+
+        for file in self.files_status.keys():
+            file_status = status.get(self.files_status.get(file))
+            file_status[0](file_status[1].format(file))
+
+    def _write_report(self):
         logging.info(GENERATING_REPORT)
 
         with open(self.report_path, 'w', newline='') as report_file:
             writer = csv.writer(report_file)
-            writer.writerow(["File Name", "Status"])
-            for file in self.success_files:
-                writer.writerow([file, "Success"])
-            for file in self.failed_files:
-                writer.writerow([file, "Failed"])
+            writer.writerow(["file name", "status"])
+            for file in self.files_status.keys():
+                writer.writerow([file, self.files_status.get(file)])
 
         logging.info(f"📄 Report saved to: {self.report_path}")
