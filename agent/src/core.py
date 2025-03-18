@@ -5,7 +5,7 @@ import logging
 from datetime import datetime
 
 from src.handlers.file import FileHandler
-from src.handlers.checksum import ChecksumHandler
+from src.handlers.signature import SignatureHandler
 from src.constants.logs import *
 
 DATE: str = datetime.today().strftime('%Y-%m-%d %H-%M-%S')
@@ -25,7 +25,7 @@ class Core:
         self._load_environment()
         self.report_path = f"report/{DATE}.csv"
         self.file_handler: FileHandler = FileHandler(self.storage_dir)
-        self.checksum_handler: ChecksumHandler = ChecksumHandler(self.db_url)
+        self.signature_handler: SignatureHandler = SignatureHandler(self.db_url)
         self.files_status: dict = {}
 
     def run(self):
@@ -54,19 +54,19 @@ class Core:
         logging.info(VERIFYING_FILES)
 
         files: list = os.listdir(self.file_handler.storage_dir)
-        checksum: str = None
+        signature: str = None
         file_path: str = None
-        current_checksum: str = None
+        current_signature: str = None
 
         for file_name in files:
-            checksum = self.checksum_handler.load_checksum(file_name)
+            signature = self.signature_handler.load_signature(file_name)
             file_path = os.path.join(self.file_handler.storage_dir, file_name)
-            current_checksum = self.checksum_handler.generate_checksum(file_path)
+            current_signature = self.signature_handler.generate_signature(file_path)
 
-            if not checksum:
-                self.checksum_handler.save_checksum(file_name, current_checksum)
+            if not signature:
+                self.signature_handler.save_signature(file_name, current_signature)
                 self.files_status[file_name] = "initialized"
-            elif current_checksum != checksum:
+            elif current_signature != signature:
                 self.files_status[file_name] = "corrupted"
             else:
                 self.files_status[file_name] = "valid"

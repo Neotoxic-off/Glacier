@@ -3,8 +3,8 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
-class Checksum(Base):
-    __tablename__ = 'checksums'
+class Signature(Base):
+    __tablename__ = 'signatures'
 
     file_name = Column(String, primary_key=True)
-    checksum = Column(Text, nullable=False)
+    signature = Column(Text, nullable=False)
