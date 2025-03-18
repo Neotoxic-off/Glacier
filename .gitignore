@@ -1,3 +1,10 @@
+agent/logs/*
+agent/report/*
+
+storage/*
+
+glacier/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
