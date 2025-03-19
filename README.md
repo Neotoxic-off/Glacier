@@ -16,6 +16,3 @@ DATABASE_NAME=glacier
 DATABASE_COLLECTION=signature
 ```
 
-## Todo
-- Move from sha256 to tree hash
-- Validate file nodes from tree hash
