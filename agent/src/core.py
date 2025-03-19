@@ -7,6 +7,7 @@ from datetime import datetime
 from src.handlers.file import FileHandler
 from src.handlers.signature import SignatureHandler
 from src.constants.logs import *
+from src.environment import Environment
 
 DATE: str = datetime.today().strftime('%Y-%m-%d %H-%M-%S')
 
@@ -22,10 +23,10 @@ logging.basicConfig(
 
 class Core:
     def __init__(self):
-        self._load_environment()
+        self.environment = Environment()
         self.report_path = f"report/{DATE}.csv"
-        self.file_handler: FileHandler = FileHandler(self.storage_dir)
-        self.signature_handler: SignatureHandler = SignatureHandler(self.db_url)
+        self.file_handler: FileHandler = FileHandler(self.environment.storage_directory)
+        self.signature_handler: SignatureHandler = SignatureHandler(self.environment.database_url)
         self.files_status: dict = {}
 
     def run(self):
@@ -34,21 +35,6 @@ class Core:
         self._verify_files()
         self._display_files_status()
         self._write_report()
-
-    def _load_environment(self):
-        self.storage_dir: str = os.getenv('STORAGE_DIR')
-        self.db_user: str = os.getenv('DB_USER')
-        self.db_password: str = os.getenv('DB_PASSWORD')
-        self.db_host: str = os.getenv('DB_HOST')
-        self.db_port: str = os.getenv('DB_PORT')
-        self.db_name: str = os.getenv('DB_NAME')
-        self.db_url: str = "postgresql://{}:{}@{}:{}/{}".format(
-            self.db_user,
-            self.db_password,
-            self.db_host,
-            self.db_port,
-            self.db_name
-        )
 
     def _verify_files(self) -> None:
         logging.info(VERIFYING_FILES)
