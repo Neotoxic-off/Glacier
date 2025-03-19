@@ -14,7 +14,8 @@ services:
       - ./glacier:/glacier
       - ./agent:/app
     depends_on:
-      - storage
+      storage:
+        condition: service_healthy
     networks:
       - iceberg_net
     restart: no
@@ -31,6 +32,11 @@ services:
     networks:
       - iceberg_net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 networks:
   iceberg_net:

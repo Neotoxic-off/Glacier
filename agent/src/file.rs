@@ -27,14 +27,17 @@ impl FileHandler {
     }
 
     pub fn save_file(&self, file_name: &str, content: &str) -> io::Result<String> {
-        let file_path = self.prepare_file(file_name);
+        let file_path: String = self.prepare_file(file_name);
+        
         info!("Saving file: {}", file_name);
         fs::write(&file_path, content)?;
+
         Ok(file_path)
     }
 
     pub fn read_file(&self, file_name: &str) -> io::Result<String> {
-        let file_path = self.prepare_file(file_name);
+        let file_path: String = self.prepare_file(file_name);
+
         info!("Reading file: {}", file_name);
         fs::read_to_string(&file_path)
     }

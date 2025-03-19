@@ -17,7 +17,7 @@ impl Environment {
         let storage_directory: String = env::var("STORAGE_DIRECTORY").expect("STORAGE_DIRECTORY not set");
         let encryption_key: String = env::var("ENCRYPTION_KEY").expect("ENCRYPTION_KEY not set");
         let database_user: String = env::var("DATABASE_USER").expect("DATABASE_USER not set");
-        let database_password = env::var("DATABASE_PASSWORD").expect("DATABASE_PASSWORD not set");
+        let database_password: String = env::var("DATABASE_PASSWORD").expect("DATABASE_PASSWORD not set");
         let database_host: String = env::var("DATABASE_HOST").expect("DATABASE_HOST not set");
         let database_port: String = env::var("DATABASE_PORT").expect("DATABASE_PORT not set");
         let database_name: String = env::var("DATABASE_NAME").expect("DATABASE_NAME not set");
