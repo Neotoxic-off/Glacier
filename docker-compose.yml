@@ -9,26 +9,25 @@ services:
       DATABASE_HOST: ${DATABASE_HOST}
       DATABASE_PORT: ${DATABASE_PORT}
       DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_COLLECTION: ${DATABASE_COLLECTION}
     volumes:
-      - ./agent:/app
       - ./glacier:/glacier
+      - ./agent:/app
     depends_on:
       - storage
     networks:
       - iceberg_net
     restart: no
-    read_only: true
 
   storage:
-    image: postgres:16.8
-    ports:
-      - ${DATABASE_PORT}:${DATABASE_PORT}
+    image: mongo:6.0
     environment:
-      POSTGRES_USER: ${DATABASE_USER}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DATABASE_NAME}
+      MONGO_INITDB_ROOT_USERNAME: ${DATABASE_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${DATABASE_PASSWORD}
+    ports:
+      - "27017:27017"
     volumes:
-      - ./storage:/var/lib/postgresql/data
+      - ./storage:/data/db
     networks:
       - iceberg_net
     restart: unless-stopped

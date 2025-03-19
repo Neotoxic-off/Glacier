@@ -1,8 +1,7 @@
-FROM python:3.11-alpine
+FROM rust:1.85
 
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt --no-cache
+COPY . .
 
-ENTRYPOINT ["python3", "/app/main.py"]
+CMD ["cargo", "run", "--release"]
