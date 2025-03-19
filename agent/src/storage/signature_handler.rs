@@ -9,12 +9,10 @@ use hex;
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Signature {
     file_name: String,
-    signature: String,
+    signature: String
 }
-
 pub struct SignatureHandler {
-    pub db_url: String,
-    pub collection: Collection<Signature>,
+    collection: Collection<Signature>,
 }
 
 impl SignatureHandler {
@@ -22,25 +20,40 @@ impl SignatureHandler {
         let client_options: ClientOptions = ClientOptions::parse(db_url)
             .await
             .expect("Failed to parse MongoDB URL");
-        let client: Client = Client::with_options(client_options).expect("Failed to connect to MongoDB");
+            
+        let client: Client = Client::with_options(client_options)
+            .expect("Failed to connect to MongoDB");
+            
         let database: mongodb::Database = client.database(db_name);
         let collection: Collection<Signature> = database.collection::<Signature>(collection_name);
 
         info!("Connected to MongoDB for signature storage.");
 
         Self {
-            db_url: db_url.to_string(),
-            collection,
+            collection
         }
     }
 
     pub fn generate_signature(&self, file_path: &str) -> String {
         let chunk_size: usize = 1024;
-        let mut file: fs::File = fs::File::open(file_path).expect("Failed to open file");
+        
+        let file: fs::File = match fs::File::open(file_path) {
+            Ok(file) => file,
+            Err(e) => {
+                error!("Failed to open file {}: {}", file_path, e);
+                return String::new();
+            }
+        };
+        
         let mut buffer: Vec<u8> = Vec::new();
+        let mut file_reader: std::io::BufReader<fs::File> = std::io::BufReader::new(file);
 
         info!("Generating Merkle tree hash for file: {}", file_path);
-        file.read_to_end(&mut buffer).expect("Failed to read file");
+        
+        if let Err(e) = file_reader.read_to_end(&mut buffer) {
+            error!("Failed to read file {}: {}", file_path, e);
+            return String::new();
+        }
 
         let leaves: Vec<[u8; 32]> = buffer
             .chunks(chunk_size)
@@ -60,7 +73,7 @@ impl SignatureHandler {
     }
 
     pub async fn save_signature(&self, file_name: &str, signature: &str) -> Result<()> {
-        let signature_doc: Signature = Signature {
+        let signature_doc = Signature {
             file_name: file_name.to_string(),
             signature: signature.to_string(),
         };
@@ -68,8 +81,7 @@ impl SignatureHandler {
         info!("Saving signature for {}", file_name);
         self.collection
             .insert_one(signature_doc)
-            .await
-            .expect("Failed to save signature");
+            .await?;
 
         Ok(())
     }
@@ -80,7 +92,10 @@ impl SignatureHandler {
         info!("Loading signature for {}", file_name);
         match self.collection.find_one(query).await {
             Ok(Some(doc)) => Some(doc.signature),
-            Ok(None) => None,
+            Ok(None) => {
+                info!("No signature found for {}", file_name);
+                None
+            }
             Err(e) => {
                 error!("Failed to load signature: {:?}", e);
                 None
