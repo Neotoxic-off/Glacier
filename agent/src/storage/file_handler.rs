@@ -1,17 +1,15 @@
-use std::fs;
-use std::io;
+use std::io::{self, Read, Write};
 use log::info;
+use std::fs::File as FsFile;
 
 pub struct File {
-    pub path: String,
-    pub name: String
+    pub path: String
 }
 
 impl File {
-    pub fn new(path: &str, name: &str) -> Self {
+    pub fn new(path: &str) -> Self {
         Self { 
-            path: path.to_string(),
-            name: name.to_string(),
+            path: path.to_string()
         }
     }
 }
@@ -36,6 +34,23 @@ impl FileHandler {
 
     pub fn create_file(&self, file_name: &str) -> File {
         let path: String = self.prepare_file_path(file_name);
-        File::new(&path, file_name)
+
+        File::new(&path)
+    }
+
+    pub fn read_file(&self, path: &str) -> io::Result<Vec<u8>> {
+        let mut file: FsFile = FsFile::open(path)?;
+        let mut buffer: Vec<u8> = Vec::new();
+
+        file.read_to_end(&mut buffer)?;
+
+        Ok(buffer)
+    }
+
+    pub fn write_file(&self, path: &str, data: &[u8]) -> io::Result<()> {
+        let mut file: FsFile = FsFile::create(path)?;
+        file.write_all(data)?;
+
+        Ok(())
     }
 }

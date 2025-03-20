@@ -3,7 +3,7 @@ use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, Key, Nonce
 };
-use aes_gcm::aead::generic_array::{GenericArray};
+use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::aead::consts::U12;
 
 pub struct SecurityHandler {
@@ -21,13 +21,13 @@ impl SecurityHandler {
         }
     }
 
-    pub fn encrypt(&self, content: &str) -> Vec<u8> {
+    pub fn encrypt(&self, content: &[u8]) -> Vec<u8> {
         info!("Encrypting content");
 
         let nonce: aes_gcm::aead::generic_array::GenericArray<u8, aes_gcm::aead::consts::U12> = Aes256Gcm::generate_nonce(&mut OsRng);
         let cipher: Aes256Gcm = Aes256Gcm::new(&self.encryption_key);
         let ciphered_data: Vec<u8> = cipher
-            .encrypt(&nonce, content.as_bytes())
+            .encrypt(&nonce, content)
             .expect("failed to encrypt");
 
         let mut encrypted_data: Vec<u8> = nonce.to_vec();
@@ -36,7 +36,7 @@ impl SecurityHandler {
         encrypted_data
     }
 
-    pub fn decrypt(&self, content: Vec<u8>) -> String {
+    pub fn decrypt(&self, content: Vec<u8>) -> Vec<u8> {
         let (nonce_arr, ciphered_data): (&[u8], &[u8]) = content.split_at(12);
         let nonce: &GenericArray<u8, U12> = Nonce::from_slice(nonce_arr);
         let cipher: Aes256Gcm = Aes256Gcm::new(&self.encryption_key);
@@ -45,6 +45,6 @@ impl SecurityHandler {
             .decrypt(nonce, ciphered_data)
             .expect("failed to decrypt data");
 
-        String::from_utf8(plaintext).expect("failed to convert vector of bytes to string")
+        plaintext
     }
 }

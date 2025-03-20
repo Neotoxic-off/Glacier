@@ -6,14 +6,17 @@ use csv::Writer;
 use log::{error, info, warn};
 
 use crate::config::environment::Environment;
+use crate::security;
+use crate::security::security::SecurityHandler;
 use crate::storage::file_handler::{File, FileHandler};
 use crate::storage::signature_handler::SignatureHandler;
-use crate::utils::constants::REPORT_DIRECTORY;
+use crate::utils::constants::{REPORT_DIRECTORY, GLACIER_DIRECTORY};
 
 pub struct Core {
     file_handler: FileHandler,
     signature_handler: SignatureHandler,
     files_status: HashMap<String, FileStatus>,
+    security_handler: SecurityHandler
 }
 
 pub struct FileStatus {
@@ -23,9 +26,10 @@ pub struct FileStatus {
 
 impl Core {
     pub async fn new() -> Self {
-        let env = Environment::new().expect("Failed to load environment variables");
-        let file_handler = FileHandler::new(&env.storage_directory);
-        let signature_handler = SignatureHandler::new(
+        let env: Environment = Environment::new().expect("Failed to load environment variables");
+        let file_handler: FileHandler = FileHandler::new(&env.storage_directory);
+        let security_handler: SecurityHandler = SecurityHandler::new(&env.encryption_key);
+        let signature_handler: SignatureHandler = SignatureHandler::new(
             &env.database_url,
             &env.database_name
         ).await;
@@ -34,6 +38,7 @@ impl Core {
             file_handler,
             signature_handler,
             files_status: HashMap::new(),
+            security_handler
         }
     }
 
@@ -81,15 +86,29 @@ impl Core {
         for file in files.flatten() {
             let file_name: String = file.file_name().to_string_lossy().to_string();
             let file: File = self.file_handler.create_file(&file_name);
+            let file_content: Vec<u8> = match self.file_handler.read_file(&file.path) {
+                Ok(buff) => buff,
+                Err(e) => {
+                    error!("Failed to read file {}: {}", file_name, e);
+                    Vec::new()
+                }
+            };
+            
             let file_registered: bool = self.signature_handler.is_in_catalog(&file_name).await;
-            let current_signature: String = self.signature_handler.generate_signature(&file.path);
+            let current_signature: String;
 
             if file_registered == false {
                 match self.signature_handler.save_to_catalog(&file_name).await {
                     Ok(_) => {},
                     Err(_) => {}
                 }
+                match self.file_handler.write_file(&format!("{}/{}.enc", GLACIER_DIRECTORY, file_name), &self.security_handler.encrypt(&file_content)) {
+                    Ok(_) => {},
+                    Err(_) => {}
+                }
             }
+
+            current_signature = self.signature_handler.generate_signature(&file.path);
 
             self.compare_signatures(file_name, current_signature).await;
         }
