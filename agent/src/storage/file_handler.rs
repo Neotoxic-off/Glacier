@@ -3,8 +3,8 @@ use std::io;
 use log::info;
 
 pub struct File {
-    path: String,
-    name: String,
+    pub path: String,
+    pub name: String
 }
 
 impl File {
@@ -13,14 +13,6 @@ impl File {
             path: path.to_string(),
             name: name.to_string(),
         }
-    }
-
-    pub fn get_path(&self) -> &str {
-        &self.path
-    }
-    
-    pub fn get_name(&self) -> &str {
-        &self.name
     }
 }
 
@@ -43,23 +35,7 @@ impl FileHandler {
     }
 
     pub fn create_file(&self, file_name: &str) -> File {
-        let path = self.prepare_file_path(file_name);
+        let path: String = self.prepare_file_path(file_name);
         File::new(&path, file_name)
-    }
-
-    pub fn save_file(&self, file_name: &str, content: &str) -> io::Result<File> {
-        let file_path = self.prepare_file_path(file_name);
-        
-        info!("Saving file: {}", file_name);
-        fs::write(&file_path, content)?;
-
-        Ok(File::new(&file_path, file_name))
-    }
-
-    pub fn read_file(&self, file_name: &str) -> io::Result<String> {
-        let file_path = self.prepare_file_path(file_name);
-
-        info!("Reading file: {}", file_name);
-        fs::read_to_string(&file_path)
     }
 }

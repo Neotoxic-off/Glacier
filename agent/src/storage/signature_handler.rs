@@ -6,17 +6,26 @@ use std::io::Read;
 use log::{info, error};
 use hex;
 
+use crate::utils::constants::{COLLECTION_NAME_CATALOG, COLLECTION_NAME_SIGNATURES};
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Signature {
     file_name: String,
     signature: String
 }
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct Catalog {
+    file_name: String
+}
+
 pub struct SignatureHandler {
-    collection: Collection<Signature>,
+    signatures: Collection<Signature>,
+    catalog: Collection<Catalog>
 }
 
 impl SignatureHandler {
-    pub async fn new(db_url: &str, db_name: &str, collection_name: &str) -> Self {
+    pub async fn new(db_url: &str, db_name: &str) -> Self {
         let client_options: ClientOptions = ClientOptions::parse(db_url)
             .await
             .expect("Failed to parse MongoDB URL");
@@ -25,12 +34,14 @@ impl SignatureHandler {
             .expect("Failed to connect to MongoDB");
             
         let database: mongodb::Database = client.database(db_name);
-        let collection: Collection<Signature> = database.collection::<Signature>(collection_name);
+        let signatures: Collection<Signature> = database.collection::<Signature>(COLLECTION_NAME_SIGNATURES);
+        let catalog: Collection<Catalog> = database.collection::<Catalog>(COLLECTION_NAME_CATALOG);
 
         info!("Connected to MongoDB for signature storage.");
 
         Self {
-            collection
+            signatures,
+            catalog
         }
     }
 
@@ -61,7 +72,7 @@ impl SignatureHandler {
             .collect();
 
         let merkle_tree: MerkleTree<MerkleHasher> = MerkleTree::<MerkleHasher>::from_leaves(&leaves);
-        let root = match merkle_tree.root() {
+        let root: [u8; 32] = match merkle_tree.root() {
             Some(root) => root,
             None => {
                 error!("Merkle tree is empty — failed to calculate root");
@@ -79,18 +90,51 @@ impl SignatureHandler {
         };
 
         info!("Saving signature for {}", file_name);
-        self.collection
+        self.signatures
             .insert_one(signature_doc)
             .await?;
 
         Ok(())
     }
 
+    pub async fn save_to_catalog(&self, file_name: &str) -> Result<()> {
+        let catalog_doc: Catalog = Catalog {
+            file_name: file_name.to_string()
+        };
+
+        info!("Saving file '{}' to catalog", file_name);
+        self.catalog
+            .insert_one(catalog_doc)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn is_in_catalog(&self, file_name: &str) -> bool {
+        let query: mongodb::bson::Document = doc! { "file_name": file_name };
+
+        info!("Loading signature for {}", file_name);
+        match self.catalog.find_one(query).await {
+            Ok(Some(doc)) => {
+                info!("File '{}' found in catalog", doc.file_name);
+                true
+            }
+            Ok(None) => {
+                info!("File '{}' not found in catalog", file_name);
+                false
+            }
+            Err(e) => {
+                error!("Failed to load signature: {:?}", e);
+                false
+            }
+        }
+    }
+
     pub async fn load_signature(&self, file_name: &str) -> Option<String> {
         let query: mongodb::bson::Document = doc! { "file_name": file_name };
 
         info!("Loading signature for {}", file_name);
-        match self.collection.find_one(query).await {
+        match self.signatures.find_one(query).await {
             Ok(Some(doc)) => Some(doc.signature),
             Ok(None) => {
                 info!("No signature found for {}", file_name);

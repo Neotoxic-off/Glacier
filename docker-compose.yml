@@ -12,6 +12,8 @@ services:
       DATABASE_COLLECTION: ${DATABASE_COLLECTION}
     volumes:
       - ./glacier:/glacier
+      - ./agent/reports:/glacier-reports
+      - ./agent/logs:/glacier-logs
     depends_on:
       storage:
         condition: service_healthy

@@ -1,5 +1,5 @@
-pub const LOG_DIRECTORY: &str = "logs";
+pub const LOG_DIRECTORY: &str = "/glacier-logs";
+pub const REPORT_DIRECTORY: &str = "/glacier-reports";
 
-pub const REPORT_DIRECTORY: &str = "reports";
-
-pub const DEFAULT_CHUNK_SIZE: usize = 1024;
+pub const COLLECTION_NAME_SIGNATURES: &str = "signatures";
+pub const COLLECTION_NAME_CATALOG: &str = "catalog";

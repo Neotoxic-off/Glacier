@@ -1,5 +1,5 @@
-agent/logs/*
-agent/report/*
+agent/logs/*.log
+agent/reports/*/*.csv
 
 storage/*
 

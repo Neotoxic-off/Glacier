@@ -6,8 +6,9 @@ use csv::Writer;
 use log::{error, info, warn};
 
 use crate::config::environment::Environment;
-use crate::storage::file_handler::FileHandler;
+use crate::storage::file_handler::{File, FileHandler};
 use crate::storage::signature_handler::SignatureHandler;
+use crate::utils::constants::REPORT_DIRECTORY;
 
 pub struct Core {
     file_handler: FileHandler,
@@ -23,12 +24,10 @@ pub struct FileStatus {
 impl Core {
     pub async fn new() -> Self {
         let env = Environment::new().expect("Failed to load environment variables");
-        
         let file_handler = FileHandler::new(&env.storage_directory);
         let signature_handler = SignatureHandler::new(
             &env.database_url,
-            &env.database_name,
-            &env.database_collection,
+            &env.database_name
         ).await;
 
         Self {
@@ -48,11 +47,11 @@ impl Core {
     }
 
     fn save_report(&self) -> Result<(), Box<dyn Error>> {
-        let now = Local::now();
-        let date = now.format("%Y-%m-%d").to_string();
-        let hour = now.format("%H-%M-%S").to_string();
-        let folder_path = format!("reports/{}", date);
-        let file_path = format!("{}/{}.csv", folder_path, hour);
+        let now: chrono::DateTime<Local> = Local::now();
+        let date: String = now.format("%Y-%m-%d").to_string();
+        let hour: String = now.format("%H-%M-%S").to_string();
+        let folder_path: String = format!("{}/{}", REPORT_DIRECTORY, date);
+        let file_path: String = format!("{}/{}.csv", folder_path, hour);
 
         fs::create_dir_all(&folder_path)?;
 
@@ -71,7 +70,7 @@ impl Core {
     }
 
     async fn verify_files(&mut self) {
-        let files = match fs::read_dir(&self.file_handler.get_storage_dir()) {
+        let files: fs::ReadDir = match fs::read_dir(&self.file_handler.get_storage_dir()) {
             Ok(files) => files,
             Err(e) => {
                 error!("Failed to read storage directory: {}", e);
@@ -80,9 +79,18 @@ impl Core {
         };
 
         for file in files.flatten() {
-            let file_name = file.file_name().to_string_lossy().to_string();
-            let file_path = self.file_handler.prepare_file_path(&file_name);
-            let current_signature = self.signature_handler.generate_signature(&file_path);
+            let file_name: String = file.file_name().to_string_lossy().to_string();
+            let file: File = self.file_handler.create_file(&file_name);
+            let file_registered: bool = self.signature_handler.is_in_catalog(&file_name).await;
+            let current_signature: String = self.signature_handler.generate_signature(&file.path);
+
+            if file_registered == false {
+                match self.signature_handler.save_to_catalog(&file_name).await {
+                    Ok(_) => {},
+                    Err(_) => {}
+                }
+            }
+
             self.compare_signatures(file_name, current_signature).await;
         }
     }
