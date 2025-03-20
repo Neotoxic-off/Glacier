@@ -15,3 +15,6 @@ DATABASE_PORT=27017
 DATABASE_NAME=glacier
 DATABASE_COLLECTION=signature
 ```
+
+## Research
+- https://vivekshuk.la/tech/aes-encryption-rust
