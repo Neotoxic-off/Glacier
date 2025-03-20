@@ -12,7 +12,8 @@ FROM debian:12.10-slim
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/agent .
-RUN chmod +x agent
+COPY --from=builder /app/target/release/agent /app/agent
+RUN chmod +x /app/agent
 
-ENTRYPOINT ["./agent"]
+CMD ["/app/agent"]
+
