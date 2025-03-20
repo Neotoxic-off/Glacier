@@ -16,4 +16,3 @@ COPY --from=builder /app/target/release/agent /app/agent
 RUN chmod +x /app/agent
 
 CMD ["/app/agent"]
-

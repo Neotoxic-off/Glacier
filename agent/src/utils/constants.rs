@@ -4,3 +4,5 @@ pub const GLACIER_DIRECTORY: &str = "/glacier";
 
 pub const COLLECTION_NAME_SIGNATURES: &str = "signatures";
 pub const COLLECTION_NAME_CATALOG: &str = "catalog";
+
+pub const CHUNK_SIZE: usize = 1024;

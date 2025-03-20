@@ -4,13 +4,14 @@ use std::fs;
 use chrono::Local;
 use csv::Writer;
 use log::{error, info, warn};
+use std::io::Read;
 
 use crate::config::environment::Environment;
 use crate::security;
 use crate::security::security::SecurityHandler;
 use crate::storage::file_handler::{File, FileHandler};
 use crate::storage::signature_handler::SignatureHandler;
-use crate::utils::constants::{REPORT_DIRECTORY, GLACIER_DIRECTORY};
+use crate::utils::constants::{REPORT_DIRECTORY, CHUNK_SIZE};
 
 pub struct Core {
     file_handler: FileHandler,
@@ -85,59 +86,79 @@ impl Core {
 
         for file in files.flatten() {
             let file_name: String = file.file_name().to_string_lossy().to_string();
-            let file: File = self.file_handler.create_file(&file_name);
-            let file_content: Vec<u8> = match self.file_handler.read_file(&file.path) {
-                Ok(buff) => buff,
-                Err(e) => {
-                    error!("Failed to read file {}: {}", file_name, e);
-                    Vec::new()
-                }
-            };
-            
-            let file_registered: bool = self.signature_handler.is_in_catalog(&file_name).await;
-            let current_signature: String;
-
-            if file_registered == false {
-                match self.signature_handler.save_to_catalog(&file_name).await {
-                    Ok(_) => {},
-                    Err(_) => {}
-                }
-                match self.file_handler.write_file(&format!("{}/{}.enc", GLACIER_DIRECTORY, file_name), &self.security_handler.encrypt(&file_content)) {
-                    Ok(_) => {},
-                    Err(_) => {}
-                }
-            }
-
-            current_signature = self.signature_handler.generate_signature(&file.path);
-
-            self.compare_signatures(file_name, current_signature).await;
+            let path: String = self.file_handler.prepare_file_path(&file_name);
+            self.compare_signatures(path).await;
         }
     }
 
-    async fn compare_signatures(&mut self, file_name: String, current_signature: String) {
-        match self.signature_handler.load_signature(&file_name).await {
-            Some(signature) if signature == current_signature => {
-                self.files_status.insert(file_name, FileStatus {
+    async fn compare_signatures(&mut self, file_path: String) {
+        // Extract just the file name from the path for database operations
+        let file_name = match file_path.split('/').last() {
+            Some(name) => name,
+            None => {
+                error!("Invalid file path: {}", file_path);
+                return;
+            }
+        };
+
+        let original_signature: String = self.get_signature(file_name).await;
+        let generated_signature: String = self.signature_handler.generate_signature(&file_path);
+
+        if original_signature.is_empty() {
+            if generated_signature.is_empty() {
+                error!("Failed to generate signature for {}", file_path);
+                return;
+            }
+
+            if let Err(e) = self.signature_handler.save_signature(file_name, &generated_signature).await {
+                error!("Failed to save signature for {}: {}", file_path, e);
+                return;
+            } else {
+                info!("Saved signature for {}", file_path);
+            }
+
+            self.files_status.insert(file_path, FileStatus {
+                status: "initialized".to_string(),
+                signature: generated_signature
+            });
+            return;
+        }
+
+        match self.signature_handler.check_broken_chunks(&file_path, &original_signature) {
+            Ok(corrupted_chunks) if corrupted_chunks.is_empty() => {
+                info!("File '{}' integrity check passed", file_path);
+                self.files_status.insert(file_path, FileStatus {
                     status: "valid".to_string(),
-                    signature: current_signature,
+                    signature: original_signature
                 });
             }
-            Some(_) => {
-                self.files_status.insert(file_name, FileStatus {
+            Ok(corrupted_chunks) => {
+                error!(
+                    "File '{}' has corrupted chunks: {:?}",
+                    file_path, corrupted_chunks
+                );
+                self.files_status.insert(file_path, FileStatus {
                     status: "corrupted".to_string(),
-                    signature: current_signature,
+                    signature: original_signature
                 });
+            }
+            Err(e) => {
+                error!("File integrity check failed for '{}': {}", file_path, e);
+                self.files_status.insert(file_path, FileStatus {
+                    status: "error".to_string(),
+                    signature: original_signature
+                });
+            }
+        }
+    }
+
+    async fn get_signature(&mut self, file_name: &str) -> String {
+        match self.signature_handler.load_signature(file_name).await {
+            Some(signature) => {
+                signature
             }
             None => {
-                if let Err(e) = self.signature_handler.save_signature(&file_name, &current_signature).await {
-                    error!("Failed to save signature for {}: {}", file_name, e);
-                    return;
-                }
-                
-                self.files_status.insert(file_name, FileStatus {
-                    status: "initialized".to_string(),
-                    signature: current_signature,
-                });
+                String::new()
             }
         }
     }
@@ -148,6 +169,7 @@ impl Core {
                 "initialized" => warn!("File '{}' saved and signature generated.", file),
                 "valid" => info!("File '{}' integrity valid.", file),
                 "corrupted" => error!("File '{}' integrity check invalid.", file),
+                "error" => error!("File '{}' integrity check error.", file),
                 _ => {}
             }
         }
